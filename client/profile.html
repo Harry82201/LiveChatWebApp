@@ -5,17 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile</title>
     <link rel = "stylesheet" href="style.css" />
+    <script src="http://35.183.65.155/cpen400a/test-a1.js" type="text/javascript"></script>
 </head>
 <body>
     <div id="app-view">
         <ul id="app-menu">
             <li class="menu-item">
-                <img src = "C:\Users\Harry\Documents\UBC\CPEN 400A\project\project-harry82201/client/assets/chat-icon.png" alt="chat-icon_s" style="height: 40px; width: 40px;">
-                <p><a href= "C:\Users\Harry\Documents\UBC\CPEN 400A\project\project-harry82201\client\index.html">Rooms</a></p> 
+                <img src = "assets/chat-icon.png" class="menu-item-img" alt="chat-icon_s">
+                <a href= "/"><p class="menu-item-text">Rooms</p></a> 
             </li>
             <li class="menu-item">
-                <img src = "C:\Users\Harry\Documents\UBC\CPEN 400A\project\project-harry82201/client/assets/profile-icon.png" alt="profile-icon_s" style="height: 40px; width: 40px;">
-                <p><a href="C:\Users\Harry\Documents\UBC\CPEN 400A\project\project-harry82201\client\profile.html">Profile</a></p>
+                <img src = "assets/profile-icon.png" class="menu-item-img" alt="profile-icon_s">
+                <a href="/profile"><p class="menu-item-text">Profile</p></a>
             </li>
         </ul>
         <div id="page-view">
@@ -35,11 +36,11 @@
                     </div>
                     <div class="form-field" style="height: 20vh;">
                         <label for="about">About: </label>
-                        <input type="text" id="about" name="about"><br><br>
+                        <textarea id="about" name="about"> </textarea>
                     </div>
                 </div>
                 <div class="page-control">
-                    <input type="button" value="Save">
+                    <button class="button">Save</button>
                 </div>
             </div>
         </div>        
