@@ -1,0 +1,301 @@
+// Removes the contents of the given DOM element (equivalent to elem.innerHTML = '' but faster)
+function emptyDOM (elem){
+	while (elem.firstChild) elem.removeChild(elem.firstChild);
+}
+
+// Creates a DOM element from the given HTML string
+function createDOM (htmlString){
+	let template = document.createElement('template');
+	template.innerHTML = htmlString.trim();
+	return template.content.firstChild;
+}
+
+var profile = {
+    username: "Alice"
+}
+
+function main(){
+
+    var lobby = new Lobby();
+
+    var lobbyView = new LobbyView(lobby);
+    var chatView = new ChatView();
+    var profileView = new ProfileView();
+
+    var renderRoute = function(){ 
+        var page_view_empty = document.getElementById("page-view");
+        if(window.location.hash == "#/"){
+            emptyDOM(page_view_empty);
+            page_view_empty.appendChild(lobbyView.elem);
+            //console.log("at page room: " + window.location.hash);
+        }else if(window.location.hash == "#/chat/room-1"){
+            emptyDOM(page_view_empty);
+            page_view_empty.appendChild(chatView.elem);
+            //console.log("at page chat: " + window.location.hash);
+            var roomID = window.location.hash.substring(7);
+            console.log("roomID is: " + roomID);
+            var room = lobby.getRoom(roomID);
+            console.log(room);
+            if(room != null){
+                chatView.setRoom(room);
+            }
+        }else if(window.location.hash == "#/profile"){
+            emptyDOM(page_view_empty);
+            page_view_empty.appendChild(profileView.elem);
+            //console.log("at page profile: " + window.location.hash);
+        }
+    }
+
+    window.addEventListener("popstate", renderRoute, false);
+    renderRoute();
+    cpen400a.export(arguments.callee, { renderRoute, lobbyView, chatView, profileView, lobby});
+}
+
+class LobbyView{
+    constructor(lobby){
+        var self = this;
+        this.elem = createDOM(
+            `<div class="content">
+                <ul class="room-list">
+                    <li>
+                        <img src = "assets/everyone-icon.png" alt="everyone-icon_s" style="height: 40px; width: 40px;">
+                        <a href= "#/chat/room-1"><p class="room-list-text">Everyone in CPEN400A</p></a>
+                    </li>
+                    <li>
+                        <img src = "assets/bibimbap.jpg" alt="bibimbap_s" style="height: 40px; width: 40px;">
+                        <a href= "#/chat/room-2"><p class="room-list-text">Foodies only</p></a>
+                    </li>
+                    <li>
+                        <img src = "assets/minecraft.jpg" alt="minecraft_s" style="height: 40px; width: 40px;">
+                        <a href= "#/chat/room-3"><p class="room-list-text">Gamers unite</p></a>
+                    </li>
+                </ul>
+                <div class="page-control">
+                    <input type="text" id="fname" name="fname"><br><br>
+                    <button class="button">Create Room</button>
+                </div>
+            </div>`
+        );
+
+        this.listElem = this.elem.querySelector("ul.room-list");
+        this.inputElem = this.elem.querySelector("input");
+        this.buttonElem = this.elem.querySelector("button");
+
+        this.lobby = lobby;
+        
+        this.lobby.onNewRoom = function(room){
+            //self.listElem.push();
+            self.redrawList();
+        }
+        
+        var id = 4;
+
+        this.buttonElem.addEventListener("click", function(){
+            id++;
+            var textValue = self.inputElem.value;
+            self.lobby.addRoom("room-" + id, textValue, "assets/everyone-icon.png", []); // arguments?
+            self.inputElem.value = "";
+        }, false);
+        this.redrawList();
+    }
+    redrawList(){
+        emptyDOM(this.listElem);
+        for(var room in this.lobby.rooms){
+            this.listElem.appendChild(createDOM(
+                `<li>
+                    <img src = ${this.lobby.rooms[room].image} alt="everyone-icon_s" style="height: 40px; width: 40px;">
+                    <a href = "#/chat/${this.lobby.rooms[room].id}"><p class="room-list-text">${this.lobby.rooms[room].name}</p></a>
+                </li>`
+            ));
+        }
+    }
+}
+
+class ChatView{
+    constructor(){
+        var self = this;
+        this.elem = createDOM(
+            `<div class="content">
+                <h4 class="room-name">Everyone in CPEN400A</h4>
+                <div class="message-list">
+                    <div class="my-message">
+                        <span class="message-user">Me</span><br>
+                        <span class="message-text">Hi guys!</span>
+                    </div>
+                    <div class="message">
+                        <span class="message-user">Charley</span><br>
+                        <span class="message-text">How is everyone doing today?</span>
+                    </div>
+                    <div class="my-message">
+                        <span class="message-user">Me</span><br>
+                        <span class="message-text">I'm doing great!</span>
+                    </div>
+                    <div class="message">
+                        <span class="message-user">Jennifer</span><br>
+                        <span class="message-text">Same!</span>
+                    </div>
+                </div>
+                <div class="page-control">
+                    <textarea id="send-message" name="send-msg"> </textarea>
+                    <button class="button">Send</button>
+                </div>
+            </div>`
+        );
+
+        this.titleElem = this.elem.querySelector("h4");
+        this.chatElem = this.elem.querySelector("div.message-list");
+        this.inputElem = this.elem.querySelector("textarea");
+        this.buttonElem = this.elem.querySelector("button");
+
+        this.room = null;
+        
+        this.buttonElem.addEventListener("click", function(){
+            self.sendMessage();
+        }, false)
+        
+        this.inputElem.addEventListener("keyup", function(e){
+            if(e.keyCode == 13 && !e.shiftKey){
+                self.sendMessage();
+            }    
+        }, false)
+    }
+    sendMessage(){
+        var textValue = this.inputElem.value;
+        console.log(profile.username);
+        console.log(textValue);
+        this.room.addMessage(profile.username, textValue);
+        this.inputElem.value = "";
+    }
+    setRoom(room){
+        var self = this;
+        this.room = room;
+        this.titleElem.textContent = room.name;
+        console.log("titleElem is: " + this.titleElem);
+        emptyDOM(this.chatElem);
+        console.log("emptying chat room");
+        for(var messageIndex in this.room.messages){
+            if(this.room.messages[messageIndex].username == profile.username){
+                console.log("rendering my message");
+                this.chatElem.appendChild(createDOM(
+                    `<div class="my-message">
+                        <span class="message-user">${profile.username}</span><br>
+                        <span class="message-text">${this.room.messages[messageIndex].text}</span>
+                    </div>`
+                ));
+            }else{
+                console.log("rendering other's message");
+                this.chatElem.appendChild(createDOM(
+                    `<div class="message">
+                        <span class="message-user">${this.room.messages[messageIndex].username}</span><br>
+                        <span class="message-text">${this.room.messages[messageIndex].text}</span>
+                    </div>`
+                ));
+            }
+            
+        }
+        this.room.onNewMessage = function(message){
+            console.log("message.username is: " + message.username);
+            console.log("profile.username is: " + profile.username);
+            if(message.username == profile.username){
+                self.chatElem.appendChild(createDOM(
+                    `<div class="my-message">
+                        <span class="message-user">${profile.username}</span><br>
+                        <span class="message-text">${message.text}</span>
+                    </div>`
+                ));
+            }else{
+                self.chatElem.appendChild(createDOM(
+                    `<div class="message">
+                        <span class="message-user">${message.username}</span><br>
+                        <span class="message-text">${message.text}</span>
+                    </div>`
+                ));
+            }
+        }
+    }
+}
+
+class ProfileView{
+    constructor(){
+        this.elem = createDOM(
+            `<div class="content">
+                <div class="profile-form">
+                    <div class="form-field" style="height: 10vh;">
+                        <label for="uname">Username: </label>
+                        <input type="text" id="uname" name="uname"><br><br>
+                    </div>
+                    <div class="form-field" style="height: 10vh;">
+                        <label for="pword">Password: </label>
+                        <input type="password" id="pword" name="pword"><br><br>
+                    </div>
+                    <div class="form-field" style="height: 10vh;">
+                        <label for="fname">Avatar Image: </label>
+                        <input type="file" id="fname" name="fname"><br><br>
+                    </div>
+                    <div class="form-field" style="height: 20vh;">
+                        <label for="about">About: </label>
+                        <textarea id="about" name="about"> </textarea>
+                    </div>
+                </div>
+                <div class="page-control">
+                    <button class="button">Save</button>
+                </div>
+            </div>`
+        );
+    }
+}
+
+class Room{
+    constructor(id, name, image = "assets/everyone-icon.png", messages = []){
+        this.id = id;
+        this.name = name;
+        this.image = image;
+        this.messages = messages;
+    }
+    addMessage(username, text){
+        var messageObj = {
+            username: "",
+            text: ""
+        };
+        console.log(text.trim());
+        if(text.trim().length > 0){
+            //messageObj = {username: username, text: text};
+            messageObj.username = username;
+            messageObj.text = text;
+            this.messages.push(messageObj);
+        }
+        if(typeof this.onNewMessage === "function"){
+            console.log("trying to send message");
+            console.log(messageObj);
+            this.onNewMessage(messageObj);
+            
+        }
+    }
+}
+
+class Lobby{
+    constructor(){
+        var room1Messages = [{username: "Alice", text: "Hi guys"}, {username: "Bob", text: "Hi"}, {username: "David", text: "How's everyone doing?"}];
+        var room1 = new Room("room-1", "Everyone in CPEN400A", "assets/everyone-icon.png", room1Messages);
+        var room2 = new Room("room-2", "Foodies only", "assets/bibimbap.jpg", []);
+        var room3 = new Room("room-3", "Gamers unite", "assets/minecraft.jpg", []);
+        var room4 = new Room("room-4", "room4", "assets/everyone-icon.png", []);
+        this.rooms = {"room-1": room1, "room-2": room2, "room-3": room3, "room-4": room4};
+    }
+    getRoom(roomId){
+        return this.rooms[roomId];
+    }
+    addRoom(id, name, image, messages){
+        var newRoom = new Room(id, name, image, messages);
+        this.rooms[id] = newRoom;
+        
+        console.log(this.rooms);
+
+        if(typeof this.onNewRoom === "function"){
+            this.onNewRoom(newRoom);
+        }
+        
+    }
+}
+
+window.addEventListener("load", main, false);
