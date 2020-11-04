@@ -14,6 +14,35 @@ var profile = {
     username: "Alice"
 }
 
+var Service = {
+    origin : window.location.origin,
+    getAllRooms: function(){
+        return new Promise((resolve, reject)=>{
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", Service.origin + "/chat");
+            xhr.onload = function(){
+                if(xhr.status == 200){
+                    //console.log("Success: " + xhr.responseText);
+                    resolve(JSON.parse(xhr.responseText));
+                }
+                else{
+                    console.log("err");
+                    reject(new Error(xhr.responseText));
+                }
+            }
+            xhr.onerror = function(){
+                if(xhr.status >= 400 && xhr.status <= 599){
+                    console.log("Server Error");
+                    reject(new Error(xhr.responseText));
+                }else{
+                    reject();
+                }
+            }
+            xhr.send();
+        });
+    }
+}
+
 function main(){
 
     var lobby = new Lobby();
@@ -28,10 +57,7 @@ function main(){
             emptyDOM(page_view_empty);
             page_view_empty.appendChild(lobbyView.elem);
             //console.log("at page room: " + window.location.hash);
-        }else if(window.location.hash == "#/chat/room-1"){
-            emptyDOM(page_view_empty);
-            page_view_empty.appendChild(chatView.elem);
-            //console.log("at page chat: " + window.location.hash);
+        }else if(window.location.hash.startsWith("#/chat")){
             var roomID = window.location.hash.substring(7);
             console.log("roomID is: " + roomID);
             var room = lobby.getRoom(roomID);
@@ -39,6 +65,9 @@ function main(){
             if(room != null){
                 chatView.setRoom(room);
             }
+            emptyDOM(page_view_empty);
+            page_view_empty.appendChild(chatView.elem);
+            //console.log("at page chat: " + window.location.hash);
         }else if(window.location.hash == "#/profile"){
             emptyDOM(page_view_empty);
             page_view_empty.appendChild(profileView.elem);
@@ -46,9 +75,30 @@ function main(){
         }
     }
 
+    var refreshLobby = function(){
+        //var p1 = Service.getAllRooms
+        Service.getAllRooms().then(
+            (roomArray)=>{  //roomArray is the array of rooms received form the server
+                for(var i = 0; i < roomArray.length; i++){
+                    var new_room = roomArray[i];
+                    var old_room = lobby.getRoom(new_room.id);
+                    if(old_room != null){
+                        old_room.name = new_room.name;
+                        old_room.image = new_room.image;
+                    }else{
+                        lobby.addRoom(new_room);
+                    }
+                }
+            }
+        );
+    }
+
     window.addEventListener("popstate", renderRoute, false);
     renderRoute();
+    refreshLobby();
+    setInterval(refreshLobby, 1000);
     cpen400a.export(arguments.callee, { renderRoute, lobbyView, chatView, profileView, lobby});
+    cpen400a.export(arguments.callee, { refreshLobby, lobby });
 }
 
 class LobbyView{
@@ -170,7 +220,7 @@ class ChatView{
         var self = this;
         this.room = room;
         this.titleElem.textContent = room.name;
-        console.log("titleElem is: " + this.titleElem);
+        console.log("titleElem is: " + this.titleElem.textContent);
         emptyDOM(this.chatElem);
         console.log("emptying chat room");
         for(var messageIndex in this.room.messages){
@@ -179,7 +229,7 @@ class ChatView{
                 this.chatElem.appendChild(createDOM(
                     `<div class="my-message">
                         <span class="message-user">${profile.username}</span><br>
-                        <span class="message-text">${this.room.messages[messageIndex].text}</span>
+                        <span class="message-text">${this.room.messages[messageIndex].text.trim()}</span>
                     </div>`
                 ));
             }else{
@@ -187,7 +237,7 @@ class ChatView{
                 this.chatElem.appendChild(createDOM(
                     `<div class="message">
                         <span class="message-user">${this.room.messages[messageIndex].username}</span><br>
-                        <span class="message-text">${this.room.messages[messageIndex].text}</span>
+                        <span class="message-text">${this.room.messages[messageIndex].text.trim()}</span>
                     </div>`
                 ));
             }
@@ -200,14 +250,14 @@ class ChatView{
                 self.chatElem.appendChild(createDOM(
                     `<div class="my-message">
                         <span class="message-user">${profile.username}</span><br>
-                        <span class="message-text">${message.text}</span>
+                        <span class="message-text">${message.text.trim()}</span>
                     </div>`
                 ));
             }else{
                 self.chatElem.appendChild(createDOM(
                     `<div class="message">
                         <span class="message-user">${message.username}</span><br>
-                        <span class="message-text">${message.text}</span>
+                        <span class="message-text">${message.text.trim()}</span>
                     </div>`
                 ));
             }
@@ -280,7 +330,8 @@ class Lobby{
         var room2 = new Room("room-2", "Foodies only", "assets/bibimbap.jpg", []);
         var room3 = new Room("room-3", "Gamers unite", "assets/minecraft.jpg", []);
         var room4 = new Room("room-4", "room4", "assets/everyone-icon.png", []);
-        this.rooms = {"room-1": room1, "room-2": room2, "room-3": room3, "room-4": room4};
+        //this.rooms = {"room-1": room1, "room-2": room2, "room-3": room3, "room-4": room4};
+        this.rooms = {};
     }
     getRoom(roomId){
         return this.rooms[roomId];
