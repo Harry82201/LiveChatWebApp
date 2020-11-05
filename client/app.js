@@ -35,10 +35,37 @@ var Service = {
                     console.log("Server Error");
                     reject(new Error(xhr.responseText));
                 }else{
-                    reject();
+                    reject(new Error(xhr.responseText));
                 }
             }
             xhr.send();
+        });
+    },
+    addRoom: function(data){
+        return new Promise((resolve, reject)=>{
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", Service.origin + "/chat");
+            xhr.onload = function(){
+                if(xhr.status == 200){
+                    //console.log("Success: " + xhr.responseText);
+                    resolve(JSON.parse(xhr.responseText));
+                }
+                else{
+                    console.log("err");
+                    reject(new Error(xhr.responseText));
+                }
+            }
+            xhr.onerror = function(){
+                if(xhr.status >= 400 && xhr.status <= 599){
+                    console.log("Server Error");
+                    reject(new Error(xhr.responseText));
+                }else{
+                    reject(new Error(xhr.responseText));
+                }
+            }
+            xhr.setRequestHeader("Content-Type", "application/json");
+            var jsonData = JSON.stringify(data);
+            xhr.send(jsonData);
         });
     }
 }
@@ -86,7 +113,7 @@ function main(){
                         old_room.name = new_room.name;
                         old_room.image = new_room.image;
                     }else{
-                        lobby.addRoom(new_room);
+                        lobby.addRoom(new_room.id, new_room.name, new_room.image, new_room.messages);
                     }
                 }
             }
@@ -96,7 +123,7 @@ function main(){
     window.addEventListener("popstate", renderRoute, false);
     renderRoute();
     refreshLobby();
-    setInterval(refreshLobby, 1000);
+    setInterval(refreshLobby, 10000);
     cpen400a.export(arguments.callee, { renderRoute, lobbyView, chatView, profileView, lobby});
     cpen400a.export(arguments.callee, { refreshLobby, lobby });
 }
@@ -143,7 +170,19 @@ class LobbyView{
         this.buttonElem.addEventListener("click", function(){
             id++;
             var textValue = self.inputElem.value;
-            self.lobby.addRoom("room-" + id, textValue, "assets/everyone-icon.png", []); // arguments?
+            //self.lobby.addRoom("room-" + id, textValue, "assets/everyone-icon.png", []); // arguments?
+            var new_data = {
+                name: textValue,
+                image: "assets/everyone-icon.png"
+            }
+            var action = Service.addRoom(new_data);
+            action.then((result)=>{
+                console.log("!!!!!!!! sending data !!!!!!!");
+                var new_room = JSON.parse(Service.addRoom(new_data));
+                self.lobby.addRoom(new_room.id, new_room.name, new_room.image, []);
+            });
+
+
             self.inputElem.value = "";
         }, false);
         this.redrawList();
