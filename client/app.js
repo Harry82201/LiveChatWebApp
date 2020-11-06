@@ -22,11 +22,11 @@ var Service = {
             xhr.open("GET", Service.origin + "/chat");
             xhr.onload = function(){
                 if(xhr.status == 200){
-                    //console.log("Success: " + xhr.responseText);
+                    console.log("getAllRooms Success: " + xhr.responseText);
                     resolve(JSON.parse(xhr.responseText));
                 }
                 else{
-                    console.log("err");
+                    console.log("err: getRoom status not 200");
                     reject(new Error(xhr.responseText));
                 }
             }
@@ -47,11 +47,11 @@ var Service = {
             xhr.open("POST", Service.origin + "/chat");
             xhr.onload = function(){
                 if(xhr.status == 200){
-                    //console.log("Success: " + xhr.responseText);
+                    console.log("addRoom Success: " + xhr.responseText);
                     resolve(JSON.parse(xhr.responseText));
                 }
                 else{
-                    console.log("err");
+                    console.log("err: addRoom status not 200");
                     reject(new Error(xhr.responseText));
                 }
             }
@@ -73,11 +73,12 @@ var Service = {
 function main(){
 
     var lobby = new Lobby();
+    var socket = new WebSocket("ws://localhost:8000");
 
     var lobbyView = new LobbyView(lobby);
-    var chatView = new ChatView();
+    var chatView = new ChatView(socket);
     var profileView = new ProfileView();
-
+    
     var renderRoute = function(){ 
         var page_view_empty = document.getElementById("page-view");
         if(window.location.hash == "#/"){
@@ -124,7 +125,14 @@ function main(){
     renderRoute();
     refreshLobby();
     setInterval(refreshLobby, 10000);
-    cpen400a.export(arguments.callee, { renderRoute, lobbyView, chatView, profileView, lobby});
+
+    socket.addEventListener("message", function(message){
+        var parsed_msg = JSON.parse(message.data);
+        var room = lobby.getRoom(parsed_msg.roomId);
+        room.addMessage(parsed_msg.username, parsed_msg.text);
+    }, false);
+
+    cpen400a.export(arguments.callee, { renderRoute, lobbyView, chatView, profileView, lobby, socket});
     cpen400a.export(arguments.callee, { refreshLobby, lobby });
 }
 
@@ -171,17 +179,22 @@ class LobbyView{
             id++;
             var textValue = self.inputElem.value;
             //self.lobby.addRoom("room-" + id, textValue, "assets/everyone-icon.png", []); // arguments?
+            
             var new_data = {
                 name: textValue,
                 image: "assets/everyone-icon.png"
             }
-            var action = Service.addRoom(new_data);
-            action.then((result)=>{
-                console.log("!!!!!!!! sending data !!!!!!!");
-                var new_room = JSON.parse(Service.addRoom(new_data));
-                self.lobby.addRoom(new_room.id, new_room.name, new_room.image, []);
-            });
-
+            console.log("new_data:\n");
+            console.log(new_data);
+            Service.addRoom(new_data).then(
+                (returnRoom)=>{
+                    console.log("!!!!!!!! sending data !!!!!!!");
+                    self.lobby.addRoom(returnRoom.id, returnRoom.name, returnRoom.image, []);
+                },
+                (error)=>{
+                    console.log(error);
+                }
+            );
 
             self.inputElem.value = "";
         }, false);
@@ -201,7 +214,7 @@ class LobbyView{
 }
 
 class ChatView{
-    constructor(){
+    constructor(socket){
         var self = this;
         this.elem = createDOM(
             `<div class="content">
@@ -237,6 +250,7 @@ class ChatView{
         this.buttonElem = this.elem.querySelector("button");
 
         this.room = null;
+        this.socket = socket;
         
         this.buttonElem.addEventListener("click", function(){
             self.sendMessage();
@@ -254,6 +268,9 @@ class ChatView{
         console.log(textValue);
         this.room.addMessage(profile.username, textValue);
         this.inputElem.value = "";
+        
+        var message_to_server = {roomId: this.room.id, username: profile.username, text: textValue};
+        this.socket.send(JSON.stringify(message_to_server));
     }
     setRoom(room){
         var self = this;
