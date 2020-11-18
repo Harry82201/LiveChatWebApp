@@ -1,6 +1,11 @@
 // assuming cpen400a-tester.js is in the same directory as server.js
 const cpen400a = require('./cpen400a-tester.js');
 
+var mongoUrl = "mongodb://localhost:27017";
+var dbName = "cpen400a-messenger";
+var Database = require("./Database.js");
+var db = new Database(mongoUrl, dbName);
+
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
@@ -25,16 +30,22 @@ var chatrooms = [
 	}
 ]
 
+/*
 var messages = {
 	"room-1": [],
 	"room-2": [],
 	"room-3": []
 }
+*/
 
 //for(var room in chatrooms){
 //	messages[room.id].push({});
 //}
 
+var messages = {};
+db.getRooms().forEach(function(room){
+	messages[room._id] = [];
+})
 
 
 function logRequest(req, res, next){
@@ -131,5 +142,5 @@ app.listen(port, () => {
 });
 
 // at the very end of server.js
-cpen400a.connect('http://35.183.65.155/cpen400a/test-a3-server.js');
-cpen400a.export(__filename, { app, chatrooms, messages, broker });
+cpen400a.connect('http://35.183.65.155/cpen400a/test-a4-server.js');
+cpen400a.export(__filename, { app, chatrooms, messages, broker, db });
