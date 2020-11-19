@@ -67,6 +67,33 @@ var Service = {
             var jsonData = JSON.stringify(data);
             xhr.send(jsonData);
         });
+    },
+    getLastConversation: function(roomId, before){
+        
+        return new Promise((resolve, reject)=>{
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", Service.origin + "/chat/" + roomId + "/messages?before=" + encodeURI(before));
+            xhr.onload = function(){
+                if(xhr.status == 200){
+                    console.log("getLastConversation Success: " + xhr.responseText);
+                    resolve(JSON.parse(xhr.responseText));
+                }
+                else{
+                    console.log("err: getLastConversation status not 200");
+                    reject(new Error(xhr.responseText));
+                }
+            }
+            xhr.onerror = function(){
+                if(xhr.status >= 400 && xhr.status <= 599){
+                    console.log("Server Error");
+                    reject(new Error(xhr.responseText));
+                }else{
+                    reject(new Error(xhr.responseText));
+                }
+            }
+            xhr.send();
+        });
+        
     }
 }
 
@@ -109,12 +136,12 @@ function main(){
             (roomArray)=>{  //roomArray is the array of rooms received form the server
                 for(var i = 0; i < roomArray.length; i++){
                     var new_room = roomArray[i];
-                    var old_room = lobby.getRoom(new_room.id);
+                    var old_room = lobby.getRoom(new_room._id);
                     if(old_room != null){
                         old_room.name = new_room.name;
                         old_room.image = new_room.image;
                     }else{
-                        lobby.addRoom(new_room.id, new_room.name, new_room.image, new_room.messages);
+                        lobby.addRoom(new_room._id, new_room.name, new_room.image, new_room.messages);
                     }
                 }
             }
@@ -189,7 +216,7 @@ class LobbyView{
             Service.addRoom(new_data).then(
                 (returnRoom)=>{
                     console.log("!!!!!!!! sending data !!!!!!!");
-                    self.lobby.addRoom(returnRoom.id, returnRoom.name, returnRoom.image, []);
+                    self.lobby.addRoom(returnRoom._id, returnRoom.name, returnRoom.image, []);
                 },
                 (error)=>{
                     console.log(error);

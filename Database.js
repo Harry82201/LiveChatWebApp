@@ -35,8 +35,8 @@ Database.prototype.getRooms = function(){
 			 * and resolve an array of chatrooms */
             db.collection("chatrooms").find({}).toArray()
                 .then((result)=>{
-                    console.log("Result:");
-                    console.log(result);
+                    //console.log("Result:");
+                    //console.log(result);
                     resolve(result);
                 });
 		})
@@ -48,12 +48,14 @@ Database.prototype.getRoom = function(room_id){
 		new Promise((resolve, reject) => {
 			/* TODO: read the chatroom from `db`
 			 * and resolve the result */
-            db.collection("chatrooms").find({"_id": room_id}).toArray()
-                .then((result)=>{
-                    console.log("Room:");
-                    console.log(result);
-                    resolve(result);
-                });
+            var id;
+            try{
+               id = ObjectID(room_id);
+            }catch(error){
+               id = room_id;
+            }
+            var room = db.collection("chatrooms").findOne({"_id": id});
+            room.then(resolve(room)).catch(resolve(null));
 		})
 	)
 }
@@ -63,6 +65,17 @@ Database.prototype.addRoom = function(room){
 		new Promise((resolve, reject) => {
 			/* TODO: insert a room in the "chatrooms" collection in `db`
 			 * and resolve the newly added room */
+            if(room["name"] === undefined){
+                reject(room);
+            }else{
+                if(room["id"] === undefined || room["id"] === null){
+                    room["_id"] = ObjectID();
+                }
+                db.collection("chatrooms").insertOne(room)
+                    .then(resolve(room))
+                    .catch((err)=>{console.log(err)});
+            } 
+            
 		})
 	)
 }
@@ -72,6 +85,33 @@ Database.prototype.getLastConversation = function(room_id, before){
 		new Promise((resolve, reject) => {
 			/* TODO: read a conversation from `db` based on the given arguments
 			 * and resolve if found */
+            if(before === undefined || before === null){
+                before = Date.now();
+            }
+            var conversations = db.collection("conversations").find({"room_id": room_id, timestamp:{$lt: before}});
+            conversations.toArray().then((result)=>{
+                if(result != null){
+                    //console.log("getLastConversation result:");
+                    //console.log(result);
+                    var minDiffTime = Math.abs(result[0].timestamp - before);
+                    var conversation = null;
+                    for(var i = 0; i < result.length; i++){
+                        var curDiffTime = Math.abs(result[i].timestamp - before);
+                        if(minDiffTime > curDiffTime){
+                            minDiffTime = curDiffTime;
+                            conversation = result[i];
+                        }
+                    }
+                    if(conversation != null){
+                        resolve(conversation);
+                    }else{
+                        resolve(null);
+                    }
+                }else{
+                    resolve(null);
+                }
+            }).catch((err)=>{console.log(err)});
+               
 		})
 	)
 }
@@ -81,6 +121,12 @@ Database.prototype.addConversation = function(conversation){
 		new Promise((resolve, reject) => {
 			/* TODO: insert a conversation in the "conversations" collection in `db`
 			 * and resolve the newly added conversation */
+            if(conversation.room_id === undefined || conversation.timestamp === undefined || conversation.messages === undefined){
+                reject(conversation);
+            }else{
+                db.collection("conversations").insertOne(conversation)
+                .then(resolve(conversation))
+            }
 		})
 	)
 }

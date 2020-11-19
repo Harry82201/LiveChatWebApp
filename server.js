@@ -12,6 +12,7 @@ const express = require('express');
 const WebSocket = require('ws');
 var broker = new WebSocket.Server({port: 8000});
 
+/*
 var chatrooms = [
 	{
 		id: "room-1",
@@ -29,6 +30,7 @@ var chatrooms = [
 		image: "assets/minecraft.jpg"
 	}
 ]
+*/
 
 /*
 var messages = {
@@ -42,10 +44,14 @@ var messages = {
 //	messages[room.id].push({});
 //}
 
+var messageBlockSize = 10;
+
 var messages = {};
-db.getRooms().forEach(function(room){
-	messages[room._id] = [];
-})
+db.getRooms().then((res)=>{
+	for(var room of res){
+		messages[room._id] = [];
+	}
+});
 
 
 function logRequest(req, res, next){
@@ -64,17 +70,32 @@ app.use(express.json()) 						// to parse application/json
 app.use(express.urlencoded({ extended: true })) // to parse application/x-www-form-urlencoded
 app.use(logRequest);							// logging for debug
 
-
-
-app.route('/chat')
-	.get(function(req, res){
-		//hardcode returnArray now for test
+//hardcode returnArray now for test
+		/*
 		var returnArray = [
 			{id: "room-1", name: "name-1", image: "assets/everyone-icon.png", messages: []},
 			{id: "room-2", name: "name-2", image: "assets/bibimbap.jpg", messages: []},
 			{id: "room-3", name: "name-3", image: "assets/minecraft.jpg", messages: []}
 		];
-		res.send(JSON.stringify(returnArray));
+		*/
+
+app.route('/chat')
+	.get(function(req, res){
+		var returnArray = [];
+		db.getRooms().then((roomList)=>{
+			//console.log("roomList:");
+			//console.log(roomList);
+			for(var room of roomList){
+				room["messages"] = messages[room._id];
+				//console.log("combined room:");
+				//console.log(room);
+				returnArray.push(room);
+				//console.log("returnArray:");
+				//console.log(returnArray);
+			}
+			res.send(JSON.stringify(returnArray));
+		});
+		
 	})
 	.post(function(req, res){
 		console.log("req is: " + req);
@@ -85,20 +106,55 @@ app.route('/chat')
 		if(data.name == undefined){
 			res.status(400).send("does not have name field");
 		}else{
-			var new_id = (Math.floor(Math.random() * 10) + 5).toString();
-			//var new_id = "room-10";
+			//var new_id = (Math.floor(Math.random() * 10) + 5).toString();
 			var new_room = {
-				id: "room-" + new_id,
+			//	id: "room-" + new_id,
 				name: data.name,
 				image: data.image
 			};
-			chatrooms.push(new_room);
-			messages["room-" + new_id] = [];
-			console.log("updated messages:\n");
-			console.log(messages);
-			res.status(200).send(JSON.stringify(new_room));
+
+			db.addRoom(new_room).then((added_room)=>{
+				messages[added_room._id] = [];
+				res.status(200).send(JSON.stringify(added_room));
+			});
+
+			//chatrooms.push(new_room);
+			//messages["room-" + new_id] = [];
+			//console.log("updated messages:\n");
+			//console.log(messages);
+			
+			//res.status(200).send(JSON.stringify(new_room));
 		}
 	});
+
+app.get('/chat/:room_id', function(req, res){
+	var roomId = req.params.room_id;
+	console.log("room id is: ");
+	console.log(roomId);
+	db.getRoom(roomId).then((room)=>{
+		if(room != null){
+			console.log("room:");
+			console.log(room);
+			res.status(200).send(room);
+		}else{
+			res.status(404).send("Room " + roomId + " was not found");
+		}
+	});
+});
+
+app.route('/chat/:room_id/messages').get(async function(req, res){
+	var roomId = req.params.room_id;
+	var before = parseInt(req.query.before);
+	
+	db.getLastConversation(roomId, before).then((conversation)=>{
+		if(conversation != null){
+			res.status(200).send(conversation);
+		}else{
+			res.status(404).send("Conversation was not found");
+		}
+	})
+	
+});
 
 console.log("Ready for broker!");
 broker.on('connection', function(ws){
@@ -119,19 +175,26 @@ broker.on('connection', function(ws){
 		console.log("task5 updated messages:");
 		console.log(messages);
 
+		if(messages[message_in.roomId].length == messageBlockSize){
+			var conversation = {
+				room_id: message_in.roomId,
+				timestamp: Date.now(),
+				messages: messages[message_in.roomId]
+			};
+			console.log("conversation is:");
+			console.log(conversation);
+			db.addConversation(conversation)
+				.then()
+				.catch((err)=>{console.log(err)});
+			messages[message_in.roomId] = [];
+		}
+
 		broker.clients.forEach(function(client){
 			if(client !== ws && client.readyState === WebSocket.OPEN){
 				client.send(JSON.stringify(message_in));
 			}
 		});
 
-		/*
-		for(var client in broker.clients){
-			if(client !== ws && client.readyState === WebSocket.OPEN){
-				client.send(JSON.stringify(msg_obj));
-			}
-		}
-		*/
 	});
 });
 
@@ -143,4 +206,4 @@ app.listen(port, () => {
 
 // at the very end of server.js
 cpen400a.connect('http://35.183.65.155/cpen400a/test-a4-server.js');
-cpen400a.export(__filename, { app, chatrooms, messages, broker, db });
+cpen400a.export(__filename, { app, messages, broker, db, messageBlockSize });
