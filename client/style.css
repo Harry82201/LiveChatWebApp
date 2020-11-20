@@ -260,3 +260,14 @@ body{
 .menu-item a:hover{
     color: chocolate;
 }
+
+.room-list {
+    height: 100px;
+    overflow: auto;
+ }
+
+.message-list {
+    height: 100px;
+    overflow: auto;
+ }
+

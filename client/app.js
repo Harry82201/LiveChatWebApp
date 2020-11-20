@@ -168,7 +168,7 @@ class LobbyView{
         var self = this;
         this.elem = createDOM(
             `<div class="content">
-                <ul class="room-list">
+                <ul class="room-list" style="height:90%">
                     <li>
                         <img src = "assets/everyone-icon.png" alt="everyone-icon_s" style="height: 40px; width: 40px;">
                         <a href= "#/chat/room-1"><p class="room-list-text">Everyone in CPEN400A</p></a>
@@ -246,7 +246,7 @@ class ChatView{
         this.elem = createDOM(
             `<div class="content">
                 <h4 class="room-name">Everyone in CPEN400A</h4>
-                <div class="message-list">
+                <div class="message-list" style="height:84%">
                     <div class="my-message">
                         <span class="message-user">Me</span><br>
                         <span class="message-text">Hi guys!</span>
@@ -275,6 +275,8 @@ class ChatView{
         this.chatElem = this.elem.querySelector("div.message-list");
         this.inputElem = this.elem.querySelector("textarea");
         this.buttonElem = this.elem.querySelector("button");
+        
+        this.chatElem.scrollTop = this.elem.querySelector("div.message-list");
 
         this.room = null;
         this.socket = socket;
@@ -288,6 +290,12 @@ class ChatView{
                 self.sendMessage();
             }    
         }, false)
+
+        this.chatElem.addEventListener("wheel", function(e){
+            if(self.chatElem.scrollTop == 0 && e.deltaY < 0 && self.room.canLoadConversation == true){
+                self.room.getLastConversation.next();
+            }
+        })
     }
     sendMessage(){
         var textValue = this.inputElem.value;
@@ -345,6 +353,31 @@ class ChatView{
                 ));
             }
         }
+        this.room.onFetchConversation = function(conversation){
+            var message = conversation.messages;
+            var temp_top = self.chatElem.scrollTop;
+            for(var i = message.length - 1; i >= 0; i--){
+                var msgIn = message[i];
+                var msgRender;
+                if(msgIn.username == profile.username){
+                    msgRender = createDOM(
+                        `<div class="my-message">
+                            <span class="message-user">${msgIn.username}</span><br>
+                            <span class="message-text">${msgIn.text.trim()}</span>
+                        </div>`
+                    );
+                }else{
+                    msgRender = createDOM(
+                        `<div class="message">
+                            <span class="message-user">${msgIn.username}</span><br>
+                            <span class="message-text">${msgIn.text.trim()}</span>
+                        </div>`
+                    );
+                }
+                self.chatElem.insertBefore(msgRender, self.chatElem.firstChild);
+            }
+            self.chatElem.scrollTop = self.chatElem.scrollTop - temp_top;
+        }
     }
 }
 
@@ -384,6 +417,10 @@ class Room{
         this.name = name;
         this.image = image;
         this.messages = messages;
+        this.canLoadConversation = true;
+        this.timestamp = Date.now();
+        this.getLastConversation = makeConversationLoader(this);
+        
     }
     addMessage(username, text){
         var messageObj = {
@@ -404,6 +441,13 @@ class Room{
             
         }
     }
+    addConversation(conversation){
+        conversation.messages.forEach((msg)=>{
+            this.messages.push(msg);
+        })
+        this.onFetchConversation(conversation);
+    }
+    //onFetchConversation(conversation);
 }
 
 class Lobby{
@@ -428,6 +472,27 @@ class Lobby{
         if(typeof this.onNewRoom === "function"){
             this.onNewRoom(newRoom);
         }
+        
+    }
+}
+
+function* makeConversationLoader(room){
+    var lastTimestamp = room.timestamp;
+    while((lastTimestamp > 0) && (room.canLoadConversation == true)){
+        
+        yield new Promise((resolve, reject)=>{
+            room.canLoadConversation = false;
+            Service.getLastConversation(room.id, lastTimestamp).then((res)=>{
+                if(res){
+                    lastTimestamp = res.timestamp;
+                    room.canLoadConversation = true;
+                    room.addConversation(res);
+                    resolve(res);
+                }else{
+                    resolve(null);
+                }
+            });
+        });
         
     }
 }

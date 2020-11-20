@@ -98,12 +98,12 @@ app.route('/chat')
 		
 	})
 	.post(function(req, res){
-		console.log("req is: " + req);
+		//console.log("req is: " + req);
 		var data = req.body;
-		console.log("data is: \n");
-		console.log(data["name"]);
+		//console.log("data is: \n");
+		//console.log(data["name"]);
 		
-		if(data.name == undefined){
+		if(data.name === undefined){
 			res.status(400).send("does not have name field");
 		}else{
 			//var new_id = (Math.floor(Math.random() * 10) + 5).toString();
@@ -112,6 +112,9 @@ app.route('/chat')
 				name: data.name,
 				image: data.image
 			};
+
+			//console.log("==================================new room=========================");
+			//console.log(new_room);
 
 			db.addRoom(new_room).then((added_room)=>{
 				messages[added_room._id] = [];
@@ -129,12 +132,12 @@ app.route('/chat')
 
 app.get('/chat/:room_id', function(req, res){
 	var roomId = req.params.room_id;
-	console.log("room id is: ");
-	console.log(roomId);
+	//console.log("room id is: ");
+	//console.log(roomId);
 	db.getRoom(roomId).then((room)=>{
 		if(room != null){
-			console.log("room:");
-			console.log(room);
+			//console.log("room:");
+			//console.log(room);
 			res.status(200).send(room);
 		}else{
 			res.status(404).send("Room " + roomId + " was not found");
@@ -142,7 +145,7 @@ app.get('/chat/:room_id', function(req, res){
 	});
 });
 
-app.route('/chat/:room_id/messages').get(async function(req, res){
+app.route('/chat/:room_id/messages').get(function(req, res){
 	var roomId = req.params.room_id;
 	var before = parseInt(req.query.before);
 	
@@ -161,19 +164,19 @@ broker.on('connection', function(ws){
 	console.log("Ready for ws!");
 	ws.on('message', function(data){
 
-		console.log("data is:");
-		console.log(data);
+		//console.log("data is:");
+		//console.log(data);
 
 		var message_in = JSON.parse(data);
 		
-		console.log("message_in is:");
-		console.log(message_in);
+		//console.log("message_in is:");
+		//console.log(message_in);
 		
 		var msg_obj = {username: message_in.username, text: message_in.text};
 		messages[message_in.roomId].push(msg_obj);
 		
-		console.log("task5 updated messages:");
-		console.log(messages);
+		//console.log("task5 updated messages:");
+		//console.log(messages);
 
 		if(messages[message_in.roomId].length == messageBlockSize){
 			var conversation = {
@@ -181,8 +184,8 @@ broker.on('connection', function(ws){
 				timestamp: Date.now(),
 				messages: messages[message_in.roomId]
 			};
-			console.log("conversation is:");
-			console.log(conversation);
+			//console.log("conversation is:");
+			//console.log(conversation);
 			db.addConversation(conversation)
 				.then()
 				.catch((err)=>{console.log(err)});
