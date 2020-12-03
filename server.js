@@ -10,7 +10,10 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const WebSocket = require('ws');
+const SessionManager = require('./sessionManager.js');
 var broker = new WebSocket.Server({port: 8000});
+
+var sessionManager = new SessionManager();
 
 /*
 var chatrooms = [
@@ -78,6 +81,21 @@ app.use(logRequest);							// logging for debug
 			{id: "room-3", name: "name-3", image: "assets/minecraft.jpg", messages: []}
 		];
 		*/
+
+app.route('/login')
+	.post(function(req, res){
+		var username = req.body.username;
+		var password = req.body.password;
+		var maxAge = req.body.maxAge;
+		db.getUser(username).then((user)=>{
+			if(isCorrectPassword(password, user.password)){
+				var newSession = new sessionManager.createSession(user, username, maxAge);
+				res.redirect('/');
+			}else{
+				res.redirect('/login');
+			}
+		})
+	})
 
 app.route('/chat')
 	.get(function(req, res){
