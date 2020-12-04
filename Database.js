@@ -90,9 +90,9 @@ Database.prototype.getLastConversation = function(room_id, before){
             }
             var conversations = db.collection("conversations").find({"room_id": room_id, timestamp:{$lt: before}});
             conversations.toArray().then((result)=>{
-                if(result != null){
-                    //console.log("getLastConversation result:");
-                    //console.log(result);
+                if(result !== null && result.length > 0){
+                    console.log("getLastConversation result:");
+                    console.log(result);
                     var minDiffTime = Math.abs(result[0].timestamp - before);
                     var conversation = null;
                     for(var i = 0; i < result.length; i++){
@@ -111,10 +111,11 @@ Database.prototype.getLastConversation = function(room_id, before){
                     resolve(null);
                 }
             }).catch((err)=>{console.log(err)});
-               
+             
 		})
 	)
 }
+
 
 Database.prototype.addConversation = function(conversation){
 	return this.connected.then(db =>

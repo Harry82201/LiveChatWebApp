@@ -1,5 +1,6 @@
 // assuming cpen400a-tester.js is in the same directory as server.js
 const cpen400a = require('./cpen400a-tester.js');
+const crypto = require('crypto');
 
 var mongoUrl = "mongodb://localhost:27017";
 var dbName = "cpen400a-messenger";
@@ -10,7 +11,7 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const WebSocket = require('ws');
-const SessionManager = require('./sessionManager.js');
+const SessionManager = require('./SessionManager.js');
 var broker = new WebSocket.Server({port: 8000});
 
 var sessionManager = new SessionManager();
@@ -56,6 +57,13 @@ db.getRooms().then((res)=>{
 	}
 });
 
+function isCorrectPassword(password, saltedHash){
+	var salt = saltedHash.substring(0, 20);
+    var hash = saltedHash.substring(20);
+    var passwordIN = crypto.createHash('SHA256').update(password + salt).digest('BASE64');
+    return passwordIN == hash;
+}
+
 
 function logRequest(req, res, next){
 	console.log(`${new Date()}  ${req.ip} : ${req.method} ${req.path}`);
@@ -73,6 +81,30 @@ app.use(express.json()) 						// to parse application/json
 app.use(express.urlencoded({ extended: true })) // to parse application/x-www-form-urlencoded
 app.use(logRequest);							// logging for debug
 
+app.use('/chat/:room_id/messages', sessionManager.middleware);
+app.use('/chat/:room_id', sessionManager.middleware);
+app.use('/chat', sessionManager.middleware);
+app.use('/profile', sessionManager.middleware);
+app.use('/app.js', sessionManager.middleware, express.static(clientApp + '/app.js'));
+app.use('/index.html', sessionManager.middleware, express.static(clientApp + '/index.html'));
+app.use('/index', sessionManager.middleware, express.static(clientApp + '/index.html'));
+app.use(/^\/$/, sessionManager.middleware, express.static(clientApp, { extensions: ['html'] }));
+
+
+app.use(function(err, req, res, next){
+	if(err instanceof SessionManager.Error) {
+		if(req.headers.accept == 'application/json'){
+			res.status(401).json(err);
+		}else{
+			res.redirect('/login');
+		}
+	}else if(err){
+		res.status(500).send();
+	} else {
+		next();
+	}
+})
+
 //hardcode returnArray now for test
 		/*
 		var returnArray = [
@@ -83,19 +115,29 @@ app.use(logRequest);							// logging for debug
 		*/
 
 app.route('/login')
+	.get(function(req, res){
+		res.sendFile(path.join(__dirname, 'client/login.html'));
+	})
 	.post(function(req, res){
 		var username = req.body.username;
 		var password = req.body.password;
+		console.log(password);
 		var maxAge = req.body.maxAge;
 		db.getUser(username).then((user)=>{
-			if(isCorrectPassword(password, user.password)){
-				var newSession = new sessionManager.createSession(user, username, maxAge);
-				res.redirect('/');
-			}else{
+			if(user == null){
 				res.redirect('/login');
+			}else{
+				if(isCorrectPassword(password, user.password)){
+					sessionManager.createSession(res, username, maxAge);
+					res.redirect('/');
+				}else{
+					res.redirect('/login');
+				}
 			}
 		})
 	})
+
+
 
 app.route('/chat')
 	.get(function(req, res){
@@ -148,75 +190,102 @@ app.route('/chat')
 		}
 	});
 
-app.get('/chat/:room_id', function(req, res){
-	var roomId = req.params.room_id;
-	//console.log("room id is: ");
-	//console.log(roomId);
-	db.getRoom(roomId).then((room)=>{
-		if(room != null){
-			//console.log("room:");
-			//console.log(room);
-			res.status(200).send(room);
-		}else{
-			res.status(404).send("Room " + roomId + " was not found");
-		}
-	});
-});
-
-app.route('/chat/:room_id/messages').get(function(req, res){
-	var roomId = req.params.room_id;
-	var before = parseInt(req.query.before);
-	
-	db.getLastConversation(roomId, before).then((conversation)=>{
-		if(conversation != null){
-			res.status(200).send(conversation);
-		}else{
-			res.status(404).send("Conversation was not found");
-		}
-	})
-	
-});
-
-console.log("Ready for broker!");
-broker.on('connection', function(ws){
-	console.log("Ready for ws!");
-	ws.on('message', function(data){
-
-		//console.log("data is:");
-		//console.log(data);
-
-		var message_in = JSON.parse(data);
-		
-		//console.log("message_in is:");
-		//console.log(message_in);
-		
-		var msg_obj = {username: message_in.username, text: message_in.text};
-		messages[message_in.roomId].push(msg_obj);
-		
-		//console.log("task5 updated messages:");
-		//console.log(messages);
-
-		if(messages[message_in.roomId].length == messageBlockSize){
-			var conversation = {
-				room_id: message_in.roomId,
-				timestamp: Date.now(),
-				messages: messages[message_in.roomId]
-			};
-			//console.log("conversation is:");
-			//console.log(conversation);
-			db.addConversation(conversation)
-				.then()
-				.catch((err)=>{console.log(err)});
-			messages[message_in.roomId] = [];
-		}
-
-		broker.clients.forEach(function(client){
-			if(client !== ws && client.readyState === WebSocket.OPEN){
-				client.send(JSON.stringify(message_in));
+app.route('/chat/:room_id')
+	.get(function(req, res){
+		var roomId = req.params.room_id;
+		//console.log("room id is: ");
+		//console.log(roomId);
+		db.getRoom(roomId).then((room)=>{
+			if(room != null){
+				//console.log("room:");
+				//console.log(room);
+				res.status(200).send(room);
+			}else{
+				res.status(404).send("Room " + roomId + " was not found");
 			}
 		});
-
 	});
+
+app.route('/chat/:room_id/messages')
+	.get(function(req, res){
+		var roomId = req.params.room_id;
+		var before = parseInt(req.query.before);
+		
+		db.getLastConversation(roomId, before).then((conversation)=>{
+			if(conversation !== null && conversation.length > 0){
+				res.status(200).send(conversation);
+			}else{
+				res.status(404).send("Conversation was not found");
+			}
+		})
+	});
+
+app.route('/profile')
+	.get(function(req, res){
+		var obj = {
+			"username": req.username
+		};
+		console.log("/profile object is:");
+		console.log(obj);
+		res.send(obj);
+	})
+
+app.route('/logout')
+	.get(function(req, res){
+		sessionManager.deleteSession(req);
+		res.redirect('/login');
+	})
+
+console.log("Ready for broker!");
+broker.on('connection', function(ws, request){
+	console.log("Ready for ws!");
+	var cookie = request.headers.cookie;
+	if(cookie != null && cookie != undefined){
+		var cookieVal = cookie.split('=')[1];
+	}
+	if(cookie === undefined || sessionManager.getUsername(cookieVal) === null){
+		ws.close();
+	}else{
+		ws.on('message', function(data){
+
+			//console.log("data is:");
+			//console.log(data);
+
+			var message_in = JSON.parse(data);
+		
+			//console.log("message_in is:");
+			//console.log(message_in);
+
+			let new_name = sessionManager.getUsername(request.headers.cookie.split('=')[1]);
+		
+			var msg_obj = {username: new_name, text: message_in.text};
+			messages[message_in.roomId].push(msg_obj);
+		
+			//console.log("task5 updated messages:");
+			//console.log(messages);
+
+			if(messages[message_in.roomId].length == messageBlockSize){
+				var conversation = {
+					room_id: message_in.roomId,
+					timestamp: Date.now(),
+					messages: messages[message_in.roomId]
+				};
+				//console.log("conversation is:");
+				//console.log(conversation);
+				db.addConversation(conversation)
+					.then()
+					.catch((err)=>{console.log(err)});
+				messages[message_in.roomId] = [];
+			}
+
+			broker.clients.forEach(function(client){
+				if(client !== ws && client.readyState === WebSocket.OPEN){
+					client.send(JSON.stringify(msg_obj));
+				}
+			});
+
+		});
+	}
 });
 
 // serve static files (client-side)
@@ -226,5 +295,5 @@ app.listen(port, () => {
 });
 
 // at the very end of server.js
-cpen400a.connect('http://35.183.65.155/cpen400a/test-a4-server.js');
-cpen400a.export(__filename, { app, messages, broker, db, messageBlockSize });
+cpen400a.connect('http://35.183.65.155/cpen400a/test-a5-server.js');
+cpen400a.export(__filename, { app, messages, broker, db, messageBlockSize, sessionManager, isCorrectPassword });

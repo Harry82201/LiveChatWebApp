@@ -94,6 +94,32 @@ var Service = {
             xhr.send();
         });
         
+    },
+    getProfile: function(){
+        return new Promise((resolve, reject)=>{
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", Service.origin + "/profile");
+            xhr.onload = function(){
+                if(xhr.status == 200){
+                    console.log("getProfile Success: " + xhr.responseText);
+                    resolve(JSON.parse(xhr.responseText));
+                }
+                else{
+                    console.log("err: getProfile status not 200");
+                    reject(new Error(xhr.responseText));
+                }
+            }
+            xhr.onerror = function(){
+                if(xhr.status >= 400 && xhr.status <= 599){
+                    console.log("Server Error");
+                    reject(new Error(xhr.responseText));
+                }else{
+                    reject(new Error(xhr.responseText));
+                }
+            }
+            xhr.setRequestHeader("Content-Type", "application/json");
+            xhr.send();
+        });
     }
 }
 
@@ -152,6 +178,14 @@ function main(){
     renderRoute();
     refreshLobby();
     setInterval(refreshLobby, 10000);
+
+    Service.getProfile().then(
+        (result)=>{
+            console.log("result from getProfile():");
+            console.log(result);
+            profile.username = result.username;
+        }
+    );
 
     socket.addEventListener("message", function(message){
         var parsed_msg = JSON.parse(message.data);
